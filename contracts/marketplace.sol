@@ -225,13 +225,29 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
 
     /**
      * @notice buy a NFT from marketplace
+     * @param _nfts a list of NFT collection addresses to buy
+     * @param _tokenIds a list of specified NFT ids to buy
+     */
+    function bulkBuy(
+        address[] memory _nfts,
+        uint256[] memory _tokenIds
+    ) external payable {
+        require(_nfts.length == _tokenIds.length, "The length of ids and nfts should be equal");
+
+        for (uint256 i = 0; i < _nfts.length; i++) {
+            buy(_nfts[i], _tokenIds[i]);
+        }
+    }
+
+    /**
+     * @notice buy a NFT from marketplace
      * @param _nft NFT collection address to buy
      * @param _tokenId specified NFT id to buy
      */
     function buy(
         address _nft,
         uint256 _tokenId
-    ) external payable isListedNFT(_nft, _tokenId) {
+    ) public payable isListedNFT(_nft, _tokenId) {
         ListNFT storage listedNft = listNfts[_nft][_tokenId];
 
         require(!listedNft.sold, "nft already sold");
