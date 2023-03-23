@@ -18,7 +18,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address nft;
         uint256 tokenId;
         address seller;
-        address payToken;
         uint256 price;
         bool sold;
     }
@@ -27,7 +26,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address nft;
         uint256 tokenId;
         address offerer;
-        address payToken;
         uint256 offerPrice;
         bool accepted;
     }
@@ -36,7 +34,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address nft;
         uint256 tokenId;
         address creator;
-        address payToken;
         uint256 initialPrice;
         uint256 minBid;
         uint256 startTime;
@@ -46,9 +43,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address winner;
         bool success;
     }
-
-    mapping(address => bool) private payableToken;
-    address[] private tokens;
 
     // nft => tokenId => list struct
     mapping(address => mapping(uint256 => ListNFT)) private listNfts;
@@ -68,14 +62,12 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
     event ListedNFT(
         address indexed nft,
         uint256 indexed tokenId,
-        address payToken,
         uint256 price,
         address indexed seller
     );
     event BoughtNFT(
         address indexed nft,
         uint256 indexed tokenId,
-        address payToken,
         uint256 price,
         address seller,
         address indexed buyer
@@ -83,21 +75,18 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
     event OfferredNFT(
         address indexed nft,
         uint256 indexed tokenId,
-        address payToken,
         uint256 offerPrice,
         address indexed offerer
     );
     event CanceledOfferredNFT(
         address indexed nft,
         uint256 indexed tokenId,
-        address payToken,
         uint256 offerPrice,
         address indexed offerer
     );
     event AcceptedNFT(
         address indexed nft,
         uint256 indexed tokenId,
-        address payToken,
         uint256 offerPrice,
         address offerer,
         address indexed nftOwner
@@ -105,7 +94,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
     event CreatedAuction(
         address indexed nft,
         uint256 indexed tokenId,
-        address payToken,
         uint256 price,
         uint256 minBid,
         uint256 startTime,
@@ -115,7 +103,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
     event PlacedBid(
         address indexed nft,
         uint256 indexed tokenId,
-        address payToken,
         uint256 bidPrice,
         address indexed bidder
     );
@@ -194,28 +181,18 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         _;
     }
 
-    modifier isPayableToken(address _payToken) {
-        require(
-            _payToken != address(0) && payableToken[_payToken],
-            "invalid pay token"
-        );
-        _;
-    }
-
     /**
      * @notice put the NFT on marketplace
      * @param _nft specified NFT collection address
      * @param _tokenId specified NFT id to sell
-     * @param _payToken ERC-20 token address for trading
      * @param _price the price of NFT
      */
     function createSell(
         address _nft,
         uint256 _tokenId,
-        address _payToken,
         uint256 _price,
         address _seller
-    ) external isKaiKongsNFT(_nft) isPayableToken(_payToken) {
+    ) external isKaiKongsNFT(_nft) {
         IERC721 nft = IERC721(_nft);
         require(nft.ownerOf(_tokenId) == msg.sender, "not nft owner");
         nft.transferFrom(msg.sender, address(this), _tokenId);
@@ -224,12 +201,11 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
             nft: _nft,
             tokenId: _tokenId,
             seller: _seller,
-            payToken: _payToken,
             price: _price,
             sold: false
         });
 
-        emit ListedNFT(_nft, _tokenId, _payToken, _price, _seller);
+        emit ListedNFT(_nft, _tokenId, _price, _seller);
     }
 
     /**
@@ -251,56 +227,37 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
      * @notice buy a NFT from marketplace
      * @param _nft NFT collection address to buy
      * @param _tokenId specified NFT id to buy
-     * @param _payToken ERC-20 token address for trading
-     * @param _price NFT price
      */
     function buy(
         address _nft,
-        uint256 _tokenId,
-        address _payToken,
-        uint256 _price
-    ) external isListedNFT(_nft, _tokenId) {
+        uint256 _tokenId
+    ) external payable isListedNFT(_nft, _tokenId) {
         ListNFT storage listedNft = listNfts[_nft][_tokenId];
-        require(
-            _payToken != address(0) && _payToken == listedNft.payToken,
-            "invalid pay token"
-        );
+
         require(!listedNft.sold, "nft already sold");
-        require(_price >= listedNft.price, "invalid price");
+        require(msg.value >= listedNft.price, "invalid price");
 
         listedNft.sold = true;
 
-        uint256 totalPrice = _price;
+        uint256 totalPrice = msg.value;
         IKaiKongsNFT nft = IKaiKongsNFT(listedNft.nft);
         address royaltyRecipient = nft.getRoyaltyRecipient();
         uint256 royaltyFee = nft.getRoyaltyFee();
 
         if (royaltyFee > 0) {
-            uint256 royaltyTotal = calculateRoyalty(royaltyFee, _price);
+            uint256 royaltyTotal = calculateRoyalty(royaltyFee, msg.value);
 
             // Transfer royalty fee to collection owner
-            IERC20(listedNft.payToken).transferFrom(
-                msg.sender,
-                royaltyRecipient,
-                royaltyTotal
-            );
+            payable(royaltyRecipient).transfer(royaltyTotal);
             totalPrice -= royaltyTotal;
         }
 
         // Calculate & Transfer platfrom fee
-        uint256 platformFeeTotal = calculatePlatformFee(_price);
-        IERC20(listedNft.payToken).transferFrom(
-            msg.sender,
-            feeRecipient,
-            platformFeeTotal
-        );
+        uint256 platformFeeTotal = calculatePlatformFee(msg.value);
+        payable(feeRecipient).transfer(platformFeeTotal);
 
         // Transfer to nft owner
-        IERC20(listedNft.payToken).transferFrom(
-            msg.sender,
-            listedNft.seller,
-            totalPrice - platformFeeTotal
-        );
+        payable(listedNft.seller).transfer(totalPrice - platformFeeTotal);
 
         // Transfer NFT to buyer
         IERC721(listedNft.nft).safeTransferFrom(
@@ -312,8 +269,7 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         emit BoughtNFT(
             listedNft.nft,
             listedNft.tokenId,
-            listedNft.payToken,
-            _price,
+            msg.value,
             listedNft.seller,
             msg.sender
         );
@@ -323,23 +279,17 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
     function makeOffer(
         address _nft,
         uint256 _tokenId,
-        address _payToken,
         uint256 _offerPrice
-    ) external isListedNFT(_nft, _tokenId) {
+    ) external payable isListedNFT(_nft, _tokenId) {
         require(_offerPrice > 0, "price can not 0");
 
         ListNFT memory nft = listNfts[_nft][_tokenId];
-        IERC20(nft.payToken).transferFrom(
-            msg.sender,
-            address(this),
-            _offerPrice
-        );
+        require(msg.value == _offerPrice, "The msg.value is not equal to _offerPrice");
 
         offerNfts[_nft][_tokenId][msg.sender] = OfferNFT({
             nft: nft.nft,
             tokenId: nft.tokenId,
             offerer: msg.sender,
-            payToken: _payToken,
             offerPrice: _offerPrice,
             accepted: false
         });
@@ -347,7 +297,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         emit OfferredNFT(
             nft.nft,
             nft.tokenId,
-            nft.payToken,
             _offerPrice,
             msg.sender
         );
@@ -366,11 +315,10 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         require(offer.offerer == msg.sender, "not offerer");
         require(!offer.accepted, "offer already accepted");
         delete offerNfts[_nft][_tokenId][msg.sender];
-        IERC20(offer.payToken).transfer(offer.offerer, offer.offerPrice);
+        payable(offer.offerer).transfer(offer.offerPrice);
         emit CanceledOfferredNFT(
             offer.nft,
             offer.tokenId,
-            offer.payToken,
             offer.offerPrice,
             msg.sender
         );
@@ -410,22 +358,21 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address royaltyRecipient = nft.getRoyaltyRecipient();
         uint256 royaltyFee = nft.getRoyaltyFee();
 
-        IERC20 payToken = IERC20(offer.payToken);
 
         if (royaltyFee > 0) {
             uint256 royaltyTotal = calculateRoyalty(royaltyFee, offerPrice);
 
             // Transfer royalty fee to collection owner
-            payToken.transfer(royaltyRecipient, royaltyTotal);
+            payable(royaltyRecipient).transfer(royaltyTotal);
             totalPrice -= royaltyTotal;
         }
 
         // Calculate & Transfer platfrom fee
         uint256 platformFeeTotal = calculatePlatformFee(offerPrice);
-        payToken.transfer(feeRecipient, platformFeeTotal);
+        payable(feeRecipient).transfer(platformFeeTotal);
 
         // Transfer to seller
-        payToken.transfer(list.seller, totalPrice - platformFeeTotal);
+        payable(list.seller).transfer(totalPrice - platformFeeTotal);
 
         // Transfer NFT to offerer
         IERC721(list.nft).safeTransferFrom(
@@ -437,7 +384,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         emit AcceptedNFT(
             offer.nft,
             offer.tokenId,
-            offer.payToken,
             offer.offerPrice,
             offer.offerer,
             list.seller
@@ -448,7 +394,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
      * @notice create a auction to buy
      * @param _nft NFT collection address
      * @param _tokenId NFT id
-     * @param _payToken ERC-20 token address for trading
      * @param _price NFT price
      * @param _minBid minimum bid price
      * @param _startTime the time to start bid.
@@ -457,12 +402,11 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
     function createAuction(
         address _nft,
         uint256 _tokenId,
-        address _payToken,
         uint256 _price,
         uint256 _minBid,
         uint256 _startTime,
         uint256 _endTime
-    ) external isPayableToken(_payToken) isNotAuction(_nft, _tokenId) {
+    ) external isNotAuction(_nft, _tokenId) {
         IERC721 nft = IERC721(_nft);
         require(nft.ownerOf(_tokenId) == msg.sender, "not nft owner");
         require(_endTime > _startTime, "invalid end time");
@@ -473,7 +417,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
             nft: _nft,
             tokenId: _tokenId,
             creator: msg.sender,
-            payToken: _payToken,
             initialPrice: _price,
             minBid: _minBid,
             startTime: _startTime,
@@ -487,7 +430,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         emit CreatedAuction(
             _nft,
             _tokenId,
-            _payToken,
             _price,
             _minBid,
             _startTime,
@@ -525,7 +467,7 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address _nft,
         uint256 _tokenId,
         uint256 _bidPrice
-    ) external isAuction(_nft, _tokenId) {
+    ) external payable isAuction(_nft, _tokenId) {
         require(
             block.timestamp >= auctionNfts[_nft][_tokenId].startTime,
             "auction not start"
@@ -534,6 +476,7 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
             block.timestamp <= auctionNfts[_nft][_tokenId].endTime,
             "auction ended"
         );
+        require(_bidPrice == msg.value, "The msg.value is not equal to _bidPrice");
         require(
             _bidPrice >=
                 auctionNfts[_nft][_tokenId].heighestBid +
@@ -542,22 +485,20 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         );
 
         AuctionNFT storage auction = auctionNfts[_nft][_tokenId];
-        IERC20 payToken = IERC20(auction.payToken);
-        payToken.transferFrom(msg.sender, address(this), _bidPrice);
 
         if (auction.lastBidder != address(0)) {
             address lastBidder = auction.lastBidder;
             uint256 lastBidPrice = auction.heighestBid;
 
             // Transfer back to last bidder
-            payToken.transfer(lastBidder, lastBidPrice);
+            payable(lastBidder).transfer(lastBidPrice);
         }
 
         // Set new heighest bid price
         auction.lastBidder = msg.sender;
         auction.heighestBid = _bidPrice;
 
-        emit PlacedBid(_nft, _tokenId, auction.payToken, _bidPrice, msg.sender);
+        emit PlacedBid(_nft, _tokenId, _bidPrice, msg.sender);
     }
 
     /**
@@ -579,7 +520,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         );
 
         AuctionNFT storage auction = auctionNfts[_nft][_tokenId];
-        IERC20 payToken = IERC20(auction.payToken);
         IERC721 nft = IERC721(auction.nft);
 
         auction.success = true;
@@ -596,16 +536,16 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
             uint256 royaltyTotal = calculateRoyalty(royaltyFee, heighestBid);
 
             // Transfer royalty fee to collection owner
-            payToken.transfer(royaltyRecipient, royaltyTotal);
+            payable(royaltyRecipient).transfer(royaltyTotal);
             totalPrice -= royaltyTotal;
         }
 
         // Calculate & Transfer platfrom fee
         uint256 platformFeeTotal = calculatePlatformFee(heighestBid);
-        payToken.transfer(feeRecipient, platformFeeTotal);
+        payable(feeRecipient).transfer(platformFeeTotal);
 
         // Transfer to auction creator
-        payToken.transfer(auction.creator, totalPrice - platformFeeTotal);
+        payable(auction.creator).transfer(totalPrice - platformFeeTotal);
 
         // Transfer NFT to the winner
         nft.transferFrom(address(this), auction.lastBidder, auction.tokenId);
@@ -638,23 +578,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         uint256 _tokenId
     ) public view returns (ListNFT memory) {
         return listNfts[_nft][_tokenId];
-    }
-
-    function getPayableTokens() external view returns (address[] memory) {
-        return tokens;
-    }
-
-    function checkIsPayableToken(
-        address _payableToken
-    ) external view returns (bool) {
-        return payableToken[_payableToken];
-    }
-
-    function addPayableToken(address _token) external onlyOwner {
-        require(_token != address(0), "invalid token");
-        require(!payableToken[_token], "already payable token");
-        payableToken[_token] = true;
-        tokens.push(_token);
     }
 
     function updatePlatformFee(uint256 _platformFee) external onlyOwner {
