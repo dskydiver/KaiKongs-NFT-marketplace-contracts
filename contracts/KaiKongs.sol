@@ -18,7 +18,7 @@ contract KaiKongs is ERC721Enumerable, Pausable, Ownable {
     uint256 private royaltyFee;
     address private royaltyRecipient;
 
-    uint256 public MINT_PRICE = 15 ether; // to be updated as 15 ether
+    uint256 public mintPrice = 15 ether; // to be updated as 15 ether
     string public baseExtension = ".json";
     uint256 public maxSupply = 10000;
 
@@ -42,7 +42,7 @@ contract KaiKongs is ERC721Enumerable, Pausable, Ownable {
         royaltyFee = _royaltyFee;
         royaltyRecipient = _royaltyRecipient;
         transferOwnership(_owner);
-        MINT_PRICE = mintPrice;
+        mintPrice = mintPrice;
         maxSupply = _maxSupply;
         baseURI = baseURI_;
     }
@@ -67,7 +67,7 @@ contract KaiKongs is ERC721Enumerable, Pausable, Ownable {
 
         if (msg.sender != owner()) {
             require(amount <= 3, "You can only mint 3 at once.");
-            require(msg.value >= MINT_PRICE * amount);
+            require(msg.value >= mintPrice * amount);
         }
 
         for (uint256 i = 1; i <= amount; i++) {

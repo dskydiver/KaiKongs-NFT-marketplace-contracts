@@ -10,6 +10,7 @@ async function main() {
 
   const kaiKongsFactory = await KaiKongsF.deploy();
   await kaiKongsFactory.deployed();
+  console.log("Kaikongsfactory is deployed to: ", kaiKongsFactory.address);
 
   const marketplace = await MarketplaceFactory.deploy(
     "10000",

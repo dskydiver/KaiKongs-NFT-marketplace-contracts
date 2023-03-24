@@ -11,7 +11,7 @@ contract KaiKongsFactory {
 
     mapping(address => bool) private _KaikongsNFT;
 
-    event CreatedNFTCollection(address creator, address nft, string baseURI);
+    event CreatedNFTCollection(address indexed creator, address indexed nft);
 
     function createCollection(
         string memory _name,
@@ -35,14 +35,13 @@ contract KaiKongsFactory {
 
         nfts[msg.sender].push(address(nft));
         _KaikongsNFT[address(nft)] = true;
-        emit CreatedNFTCollection(msg.sender, address(nft), baseURI_);
+        emit CreatedNFTCollection(msg.sender, address(nft));
     }
 
     function importCollection(address _address) external {
         nfts[msg.sender].push(_address);
         _KaikongsNFT[_address] = true;
-        string memory baseURI = KaiKongs(_address).baseURI();
-        emit CreatedNFTCollection(msg.sender, _address, baseURI);
+        emit CreatedNFTCollection(msg.sender, _address);
     }
 
     function getUserCollections(
