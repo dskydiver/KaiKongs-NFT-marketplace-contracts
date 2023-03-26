@@ -7,7 +7,7 @@ interface IKaiKongsFactory {
         string memory _symbol,
         uint256 _royaltyFee,
         address _royaltyRecipient,
-        uint256 mintPrice,
+        uint256 _mintPrice,
         uint256 _maxSupply,
         string memory baseURI_
     ) external;

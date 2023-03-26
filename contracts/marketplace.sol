@@ -19,6 +19,7 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         uint256 tokenId;
         address seller;
         uint256 price;
+        uint256 date;
         bool sold;
     }
 
@@ -27,6 +28,7 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         uint256 tokenId;
         address offerer;
         uint256 offerPrice;
+        uint256 date;
         bool accepted;
     }
 
@@ -63,6 +65,7 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address indexed nft,
         uint256 indexed tokenId,
         uint256 price,
+        uint256 date,
         address indexed seller
     );
     event BoughtNFT(
@@ -76,6 +79,7 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address indexed nft,
         uint256 indexed tokenId,
         uint256 offerPrice,
+        uint256 date,
         address indexed offerer
     );
     event CanceledOfferredNFT(
@@ -202,10 +206,11 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
             tokenId: _tokenId,
             seller: _seller,
             price: _price,
+            date: block.timestamp,
             sold: false
         });
 
-        emit ListedNFT(_nft, _tokenId, _price, _seller);
+        emit ListedNFT(_nft, _tokenId, _price, block.timestamp, _seller);
     }
 
     /**
@@ -232,7 +237,10 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address[] memory _nfts,
         uint256[] memory _tokenIds
     ) external payable {
-        require(_nfts.length == _tokenIds.length, "The length of ids and nfts should be equal");
+        require(
+            _nfts.length == _tokenIds.length,
+            "The length of ids and nfts should be equal"
+        );
 
         for (uint256 i = 0; i < _nfts.length; i++) {
             buy(_nfts[i], _tokenIds[i]);
@@ -300,13 +308,17 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         require(_offerPrice > 0, "price can not 0");
 
         ListNFT memory nft = listNfts[_nft][_tokenId];
-        require(msg.value == _offerPrice, "The msg.value is not equal to _offerPrice");
+        require(
+            msg.value == _offerPrice,
+            "The msg.value is not equal to _offerPrice"
+        );
 
         offerNfts[_nft][_tokenId][msg.sender] = OfferNFT({
             nft: nft.nft,
             tokenId: nft.tokenId,
             offerer: msg.sender,
             offerPrice: _offerPrice,
+            date: block.timestamp,
             accepted: false
         });
 
@@ -314,6 +326,7 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
             nft.nft,
             nft.tokenId,
             _offerPrice,
+            block.timestamp,
             msg.sender
         );
     }
@@ -373,7 +386,6 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         IKaiKongsNFT nft = IKaiKongsNFT(offer.nft);
         address royaltyRecipient = nft.getRoyaltyRecipient();
         uint256 royaltyFee = nft.getRoyaltyFee();
-
 
         if (royaltyFee > 0) {
             uint256 royaltyTotal = calculateRoyalty(royaltyFee, offerPrice);
@@ -492,7 +504,10 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
             block.timestamp <= auctionNfts[_nft][_tokenId].endTime,
             "auction ended"
         );
-        require(_bidPrice == msg.value, "The msg.value is not equal to _bidPrice");
+        require(
+            _bidPrice == msg.value,
+            "The msg.value is not equal to _bidPrice"
+        );
         require(
             _bidPrice >=
                 auctionNfts[_nft][_tokenId].heighestBid +
@@ -579,14 +594,14 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
     function calculatePlatformFee(
         uint256 _price
     ) public view returns (uint256) {
-        return (_price * platformFee) / 10000;
+        return (_price * platformFee) / 100000;
     }
 
     function calculateRoyalty(
         uint256 _royalty,
         uint256 _price
     ) public pure returns (uint256) {
-        return (_price * _royalty) / 10000;
+        return (_price * _royalty) / 100000;
     }
 
     function getListedNFT(

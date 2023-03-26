@@ -24,13 +24,15 @@ contract KaiKongs is ERC721Enumerable, Pausable, Ownable {
 
     string public baseURI;
 
+    event UpdatedRoyaltyFee(uint256 _royaltyFee);
+
     constructor(
         string memory _name,
         string memory _symbol,
         address _owner,
         uint256 _royaltyFee,
         address _royaltyRecipient,
-        uint256 mintPrice,
+        uint256 _mintPrice,
         uint256 _maxSupply,
         string memory baseURI_
     ) ERC721(_name, _symbol) {
@@ -42,8 +44,13 @@ contract KaiKongs is ERC721Enumerable, Pausable, Ownable {
         royaltyFee = _royaltyFee;
         royaltyRecipient = _royaltyRecipient;
         transferOwnership(_owner);
-        mintPrice = mintPrice;
+        mintPrice = _mintPrice;
         maxSupply = _maxSupply;
+        require(
+            keccak256(abi.encodePacked(getSlice(0, 6, baseURI_))) ==
+                keccak256(bytes("ipfs://")),
+            "must start with 'ipfs://'"
+        );
         baseURI = baseURI_;
     }
 
@@ -107,5 +114,18 @@ contract KaiKongs is ERC721Enumerable, Pausable, Ownable {
     function updateRoyaltyFee(uint256 _royaltyFee) external onlyOwner {
         require(_royaltyFee <= 10000, "can't more than 10 percent");
         royaltyFee = _royaltyFee;
+        emit UpdatedRoyaltyFee(_royaltyFee);
+    }
+
+    function getSlice(
+        uint256 begin,
+        uint256 end,
+        string memory text
+    ) public pure returns (string memory) {
+        bytes memory a = new bytes(end - begin + 1);
+        for (uint i = 0; i <= end - begin; i++) {
+            a[i] = bytes(text)[i + begin];
+        }
+        return string(a);
     }
 }
