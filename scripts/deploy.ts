@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 
 async function main() {
   const [owner, user1, user2] = await ethers.getSigners();
@@ -13,11 +13,11 @@ async function main() {
   await kaiKongsFactory.deployed();
   console.log("Kaikongsfactory is deployed to: ", kaiKongsFactory.address);
 
-  const marketplace = await MarketplaceFactory.deploy(
+  const marketplace = await upgrades.deployProxy(MarketplaceFactory, [
     "10000",
     owner.address,
-    kaiKongsFactory.address
-  );
+    kaiKongsFactory.address,
+  ]);
   await marketplace.deployed();
 
   console.log("marketplace is deployed to: ", marketplace.address);

@@ -2,7 +2,6 @@
 pragma solidity ^0.8.9;
 
 import "./KaiKongs.sol";
-import "hardhat/console.sol";
 
 /// @title KaiKongs Factory
 /// @author dskydiver
@@ -33,7 +32,6 @@ contract KaiKongsFactory {
             _maxSupply,
             baseURI_
         );
-        console.log("nft = ", address(nft));
 
         nfts[msg.sender].push(address(nft));
         _KaikongsNFT[address(nft)] = true;

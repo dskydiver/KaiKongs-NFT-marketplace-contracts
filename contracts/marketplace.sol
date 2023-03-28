@@ -3,13 +3,20 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IKaiKongsNFT.sol";
 import "./interfaces/IKaiKongsFactory.sol";
 
-contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
-    IKaiKongsFactory private immutable kaiKongsFactory;
+contract KaiKongsMarketplace is
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    IERC721ReceiverUpgradeable,
+    UUPSUpgradeable
+{
+    IKaiKongsFactory private kaiKongsFactory;
 
     uint256 private platformFee;
     address private feeRecipient;
@@ -120,11 +127,15 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
         address caller
     );
 
-    constructor(
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    function initialize(
         uint256 _platformFee,
         address _feeRecipient,
         IKaiKongsFactory _kaikongsFactory
-    ) {
+    ) public initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
         require(_platformFee <= 10000, "can't more than 10 percent");
         platformFee = _platformFee;
         feeRecipient = _feeRecipient;
@@ -619,5 +630,14 @@ contract KaiKongsMarketplace is Ownable, ReentrancyGuard {
     function changeFeeRecipient(address _feeRecipient) external onlyOwner {
         require(_feeRecipient != address(0), "can't be 0 address");
         feeRecipient = _feeRecipient;
+    }
+
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }
