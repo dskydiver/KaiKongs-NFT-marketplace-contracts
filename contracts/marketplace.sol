@@ -254,7 +254,8 @@ contract KaiKongsMarketplace is
         );
 
         for (uint256 i = 0; i < _nfts.length; i++) {
-            buy(_nfts[i], _tokenIds[i]);
+            ListNFT memory listedNft = listNfts[_nfts[i]][_tokenIds[i]];
+            this.buy{value: listedNft.price}(_nfts[i], _tokenIds[i]);
         }
     }
 
@@ -266,7 +267,7 @@ contract KaiKongsMarketplace is
     function buy(
         address _nft,
         uint256 _tokenId
-    ) public payable isListedNFT(_nft, _tokenId) {
+    ) external payable isListedNFT(_nft, _tokenId) {
         ListNFT storage listedNft = listNfts[_nft][_tokenId];
 
         require(!listedNft.sold, "nft already sold");
